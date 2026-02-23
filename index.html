@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>clipguard</title>
+<script type="module" src="/main.ts"></script>
+</head>
+<body>
+
+<div class="container">
+
+	<!-- Header -->
+	<div class="header">
+		<h1><span>clipguard</span> / copy-paste DLP</h1>
+		<div class="header-btns">
+			<button class="btn" id="btn-how">How it works</button>
+			<button class="btn" id="btn-why">Design decisions</button>
+			<button class="btn" id="btn-cfg">Settings</button>
+		</div>
+	</div>
+
+	<!-- Workspaces -->
+	<div class="section">
+		<div class="section-label">Workspaces</div>
+		<div class="workspaces">
+			<div class="workspace">
+				<div class="workspace-head">
+					<h2>Workspace A</h2>
+					<span class="badge badge-work">REGULATED</span>
+				</div>
+				<textarea id="source" placeholder="Paste sensitive work text here, select all, then Ctrl+C / Cmd+C ...">Our Q3 revenue reached $14.2M, a 23% increase over the prior quarter. The board has approved Project Falcon, a confidential initiative to acquire TechNova Inc. for $85M. Internal API key: sk-prod-9f8e7d6c5b4a. Contact: CFO Jane Smith (jane.smith@acmecorp.internal).</textarea>
+			</div>
+			<div class="workspace">
+				<div class="workspace-head">
+					<h2>Workspace B</h2>
+					<span class="badge badge-private">PRIVATE</span>
+				</div>
+				<textarea id="target" placeholder="Paste here with Ctrl+V / Cmd+V to test detection ..."></textarea>
+			</div>
+		</div>
+	</div>
+
+	<!-- Decision output -->
+	<div class="section">
+		<div class="section-label">Decision Output</div>
+		<div class="output">
+			<div id="decision" class="decision waiting">
+				Waiting -- copy from A, paste into B
+			</div>
+			<div class="meters">
+				<div class="meter">
+					<div class="label">Fuzzy (SimHash)</div>
+					<div class="value" id="fuzzy-score">--</div>
+					<div class="bar"><div class="bar-fill" id="fuzzy-bar" style="width:0%"></div></div>
+				</div>
+				<div class="meter">
+					<div class="label">Fragment (Shingles)</div>
+					<div class="value" id="fragment-score">--</div>
+					<div class="bar"><div class="bar-fill" id="fragment-bar" style="width:0%"></div></div>
+				</div>
+				<div class="meter">
+					<div class="label">Entropy</div>
+					<div class="value" id="entropy-score">--</div>
+				</div>
+				<div class="meter">
+					<div class="label">Vault</div>
+					<div class="value" id="vault-count">0</div>
+				</div>
+			</div>
+			<div class="reason-row">
+				<div class="label">Verdict</div>
+				<div class="value" id="verdict-reason">--</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Footer -->
+	<div class="footer">
+		<div>Client-side only. No data leaves your browser.</div>
+		<div>clipguard v1.0.0</div>
+	</div>
+
+</div>
+
+<!-- How it works modal -->
+<div class="modal-overlay" id="modal-how">
+	<div class="modal">
+		<div class="modal-head">
+			<h2>How it works</h2>
+			<button class="btn-close" data-close="modal-how">ESC</button>
+		</div>
+		<div class="modal-body">
+
+			<div class="modal-section">
+				<div class="modal-section-label">Overview</div>
+				<div class="rationale">
+					<p>clipguard prevents sensitive work data from leaking into
+					unregulated destinations (personal email, social media, ChatGPT).
+					It fingerprints text when copied from a regulated workspace,
+					then compares pasted text against those fingerprints before allowing it through.</p>
+				</div>
+			</div>
+
+			<div class="modal-section">
+				<div class="modal-section-label">Detection Pipeline</div>
+				<div class="pipe-flow">
+					<div class="pipe-stage">
+						<div class="num">GATE 1</div>
+						<div class="name">Length</div>
+						<div class="desc">Reject trivially short input</div>
+						<div class="threshold">&ge; 50 chars, 8 words</div>
+					</div>
+					<div class="pipe-arrow">&rarr;</div>
+					<div class="pipe-stage">
+						<div class="num">GATE 2</div>
+						<div class="name">Stop Words</div>
+						<div class="desc">Strip noise, keep signal words only</div>
+						<div class="threshold">&ge; 10 chars after strip</div>
+					</div>
+					<div class="pipe-arrow">&rarr;</div>
+					<div class="pipe-stage">
+						<div class="num">GATE 3</div>
+						<div class="name">Entropy</div>
+						<div class="desc">Low entropy = boilerplate, raise thresholds</div>
+						<div class="threshold">&ge; 2.5 bits/char</div>
+					</div>
+					<div class="pipe-arrow">&rarr;</div>
+					<div class="pipe-stage">
+						<div class="num">GATE 4</div>
+						<div class="name">Fingerprint</div>
+						<div class="desc">SimHash + shingle compare against vault</div>
+						<div class="threshold">fuzzy &ge;70%, frag &ge;35%</div>
+					</div>
+				</div>
+				<div class="pipe-result">
+					<div class="pipe-outcome pass">Any gate fails early &rarr; ALLOW paste</div>
+					<div class="pipe-outcome fail">All gates pass + match &rarr; BLOCK paste</div>
+				</div>
+			</div>
+
+			<div class="modal-section">
+				<div class="modal-section-label">Algorithm &mdash; vault_check(raw_text)</div>
+				<div class="pseudo-block">
+					<div><span class="cmt">// Gate 1: length</span></div>
+					<div><span class="kw">if</span> words(text) <span class="op">&lt;</span> <span class="num">8</span> <span class="kw">or</span> chars(text) <span class="op">&lt;</span> <span class="num">50</span><span class="op">:</span> <span class="kw">return</span> <span class="str">ALLOW</span></div>
+					<br>
+					<div><span class="cmt">// Gate 2: strip stop words</span></div>
+					<div>signal <span class="op">=</span> <span class="fn">strip_stops</span>(<span class="fn">normalize</span>(text))</div>
+					<div><span class="kw">if</span> signal <span class="op">is</span> empty<span class="op">:</span> <span class="kw">return</span> <span class="str">ALLOW</span></div>
+					<br>
+					<div><span class="cmt">// Gate 3: entropy check</span></div>
+					<div>ent <span class="op">=</span> <span class="fn">shannon_entropy</span>(text)</div>
+					<div><span class="kw">if</span> ent <span class="op">&lt;</span> <span class="num">2.5</span><span class="op">:</span> thresholds <span class="op">=</span> { fuzzy: <span class="num">0.90</span>, frag: <span class="num">0.70</span> } <span class="cmt">// harder to trigger</span></div>
+					<div><span class="kw">else</span><span class="op">:</span> thresholds <span class="op">=</span> { fuzzy: <span class="num">0.70</span>, frag: <span class="num">0.35</span> } <span class="cmt">// normal</span></div>
+					<br>
+					<div><span class="cmt">// Gate 4: fingerprint + compare</span></div>
+					<div><span class="kw">for each</span> entry <span class="kw">in</span> vault<span class="op">:</span></div>
+					<div class="indent1">fuzzy <span class="op">=</span> <span class="fn">simhash_compare</span>(<span class="fn">simhash</span>(signal), entry.hash)</div>
+					<div class="indent1">frag &nbsp;<span class="op">=</span> <span class="fn">shingle_compare</span>(<span class="fn">shingles</span>(signal), entry.shingles)</div>
+					<br>
+					<div><span class="kw">if</span> fuzzy <span class="op">&ge;</span> threshold <span class="kw">or</span> frag <span class="op">&ge;</span> threshold<span class="op">:</span> <span class="kw">return</span> <span class="str">BLOCK</span></div>
+					<div><span class="kw">return</span> <span class="str">ALLOW</span></div>
+				</div>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<!-- Design decisions modal -->
+<div class="modal-overlay" id="modal-why">
+	<div class="modal">
+		<div class="modal-head">
+			<h2>Design Decisions</h2>
+			<button class="btn-close" data-close="modal-why">ESC</button>
+		</div>
+		<div class="modal-body">
+
+			<div class="modal-section">
+				<div class="modal-section-label">Why This Approach</div>
+				<div class="rationale">
+
+					<h3>Why a minimum length gate?</h3>
+					<ul>
+						<li>Single words like <span class="highlight">"Hello"</span> or <span class="highlight">"Thanks"</span> are not data leaks.</li>
+						<li>Short strings produce unreliable fingerprints &mdash; too few bits to compare meaningfully.</li>
+						<li>Passwords and secrets are short but handled by a separate PII/regex scanner, not fuzzy matching.</li>
+						<li>Threshold: <span class="highlight">50 characters or 8 words</span> &mdash; roughly one sentence. Anything shorter passes without running the engine.</li>
+					</ul>
+
+					<h3>Why strip stop words?</h3>
+					<ul>
+						<li>Words like <span class="dim">"the", "is", "and", "hello", "thanks"</span> appear in every document. Zero signal about content origin.</li>
+						<li>Without stripping, <span class="highlight">"Thanks for your email"</span> would match work documents containing those same words &mdash; false positive.</li>
+						<li>After stripping, only domain terms remain: <span class="highlight">"revenue", "142M", "falcon", "technova"</span>. The real fingerprint.</li>
+						<li>If nothing remains after stripping, the text was boilerplate and is allowed immediately.</li>
+					</ul>
+
+					<h3>Why Shannon entropy?</h3>
+					<ul>
+						<li>Entropy measures how <em>unpredictable</em> text is. Common phrases ~2.5 bits/char, API keys and financial data ~4.0+.</li>
+						<li>Problem: two boilerplate texts score high on fuzzy similarity because they share common vocabulary.</li>
+						<li>Solution: low entropy raises thresholds to <span class="highlight">90% fuzzy / 70% fragment</span>. Only near-exact copies of boilerplate trigger a block.</li>
+						<li>High-entropy text (the stuff we care about) uses normal, more sensitive thresholds.</li>
+					</ul>
+
+					<h3>Why SimHash for fuzzy matching?</h3>
+					<ul>
+						<li>Catches rephrased content &mdash; swapped words, reordered sentences, slightly changed numbers.</li>
+						<li>Locality-sensitive hash: similar inputs produce similar hashes. O(n) time, no corpus needed.</li>
+						<li>Alternative considered: cosine similarity with TF-IDF. Rejected &mdash; requires corpus maintenance, too heavy for client-side.</li>
+						<li>Threshold: <span class="highlight">70%</span> &mdash; high enough to avoid random collisions, low enough to catch paraphrasing.</li>
+					</ul>
+
+					<h3>Why 5-word shingle fingerprints?</h3>
+					<ul>
+						<li>SimHash measures whole-text similarity but misses partial leaks &mdash; one paragraph from a 50-page doc.</li>
+						<li>Shingles break text into overlapping 5-word sequences. A paragraph from the source still matches via its shingles.</li>
+						<li>Smaller set as Jaccard denominator: pasting 1 paragraph from 50 pages still scores high.</li>
+						<li>5 words is the sweet spot: 3-word shingles trigger too often, 7-word shingles miss short passages.</li>
+					</ul>
+
+					<h3>Why require cluster density?</h3>
+					<ul>
+						<li>A single shingle match is coincidence &mdash; two docs might share one 5-word phrase by chance.</li>
+						<li>We require <span class="highlight">&ge;35% of shingles</span> to match &mdash; meaningful structural overlap, not a stray hit.</li>
+						<li>Combined with stop-word stripping, shingles contain only signal words. 35% match on signal = strong evidence.</li>
+					</ul>
+
+					<h3>Why a 60-minute vault TTL?</h3>
+					<ul>
+						<li>Bounds memory usage and limits the false-positive window.</li>
+						<li>Stale fingerprints from an hour ago cause confusion as context shifts.</li>
+						<li>Configurable per policy via Settings panel or config.json.</li>
+					</ul>
+
+					<h3>Why client-side only?</h3>
+					<ul>
+						<li>Prototype. In production, the engine runs in a browser extension with real tab context and clipboard APIs.</li>
+						<li>No data leaves the browser &mdash; vault lives in memory, dies with the tab.</li>
+						<li>Server-side would add latency to every paste. This math runs in &lt;1ms.</li>
+					</ul>
+
+				</div>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="modal-cfg">
+	<div class="modal">
+		<div class="modal-head">
+			<h2>Settings</h2>
+			<button class="btn-close" data-close="modal-cfg">ESC</button>
+		</div>
+		<div class="modal-body">
+
+			<div class="modal-section">
+				<div class="modal-section-label">Detection Thresholds</div>
+				<form id="cfg-form">
+					<div class="cfg-grid">
+						<div class="cfg-field">
+							<label for="cfg-fuzzy-thresh">Fuzzy Threshold</label>
+							<input type="number" id="cfg-fuzzy-thresh" step="0.05" min="0" max="1">
+							<div class="hint">SimHash similarity to trigger block (0.0 - 1.0)</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-frag-thresh">Fragment Threshold</label>
+							<input type="number" id="cfg-frag-thresh" step="0.05" min="0" max="1">
+							<div class="hint">Shingle overlap ratio to trigger block (0.0 - 1.0)</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-min-entropy">Min Entropy</label>
+							<input type="number" id="cfg-min-entropy" step="0.1" min="0" max="8">
+							<div class="hint">Below this, thresholds are raised (bits/char)</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-vault-ttl">Vault TTL</label>
+							<input type="number" id="cfg-vault-ttl" step="1" min="1">
+							<div class="hint">Minutes before fingerprints expire</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-min-chars">Min Characters</label>
+							<input type="number" id="cfg-min-chars" step="1" min="1">
+							<div class="hint">Text shorter than this is always allowed</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-min-words">Min Words</label>
+							<input type="number" id="cfg-min-words" step="1" min="1">
+							<div class="hint">Text with fewer words is always allowed</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-shingle-len">Shingle Length</label>
+							<input type="number" id="cfg-shingle-len" step="1" min="2" max="10">
+							<div class="hint">N-gram window size for fragment detection</div>
+						</div>
+						<div class="cfg-field">
+							<label for="cfg-hash-bits">Hash Bits</label>
+							<input type="number" id="cfg-hash-bits" step="8" min="8" max="128">
+							<div class="hint">SimHash bit width (higher = more precise)</div>
+						</div>
+					</div>
+					<div class="cfg-actions">
+						<button type="button" class="btn" id="cfg-reset">Reset defaults</button>
+						<button type="submit" class="btn btn-primary">Apply</button>
+					</div>
+				</form>
+			</div>
+
+		</div>
+	</div>
+</div>
+
+</body>
+</html>

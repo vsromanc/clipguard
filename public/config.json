@@ -1,0 +1,10 @@
+{
+	"vaultTtlMinutes":	60,
+	"fuzzyThreshold":	0.70,
+	"fragmentThreshold":	0.35,
+	"shingleLength":	5,
+	"hashBits":		64,
+	"minChars":		50,
+	"minWords":		8,
+	"minEntropy":		2.5
+}

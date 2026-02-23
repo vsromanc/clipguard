@@ -1,0 +1,26 @@
+{
+  "name": "clipguard",
+  "version": "1.0.0",
+  "description": "Client-side DLP engine that detects and blocks copy-paste data leaks between regulated and unregulated workspaces",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "dlp",
+    "data-loss-prevention",
+    "clipboard",
+    "copy-paste",
+    "security",
+    "simhash",
+    "fingerprint"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}
